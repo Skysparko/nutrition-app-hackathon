@@ -1,11 +1,13 @@
+const isAuthorized = require("../middlewares/auth");
 const Meal = require("../models/mealModel");
 
 const router = require("express").Router();
 const fetch = require("node-fetch");
 
-router.post("/add", async (req, res) => {
+router.post("/add", isAuthorized, async (req, res) => {
   try {
-    const { meal, time, calorie } = req.body;
+    const { meal, time } = req.body;
+    let { calorie } = req.body;
     if (!meal || !time) {
       return res.status(400).send("please fill the required fields");
     }
@@ -13,23 +15,43 @@ router.post("/add", async (req, res) => {
       const response = await fetch(
         "https://trackapi.nutritionix.com/v2/natural/nutrients",
         {
-          Method: "POST",
-          Headers: {
+          method: "POST",
+          headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
             "x-app-id": "bf225eba",
             "x-app-key": "3b0459d3897c8697712241640cd33ad0",
           },
-          Body: {
-            query: meal,
-          },
+          body: JSON.stringify({ query: meal }),
         }
       );
-      const data = await response.JSON();
+      const data = await response.json();
+      calorie = data.foods[0].nf_calories;
 
-      calorie = data;
+      if (!calorie) {
+        calorie = 250;
+      }
+
+      const mealDetails = {
+        meal,
+        time,
+        calorie,
+      };
+
+      const mealDB = new Meal(mealDetails);
+      mealDB.save();
+      return res.status(200).json({ mealDB });
     }
-    return res.status(200).send(calorie);
+
+    const mealDetails = {
+      meal,
+      time,
+      calorie,
+    };
+
+    const mealDB = new Meal(mealDetails);
+    mealDB.save();
+    return res.status(200).json({ mealDB });
   } catch (error) {
     console.log("<<<<<<<<<<<<<", error);
     return res.status(500).send(error.message);
@@ -48,9 +70,9 @@ router.get("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
-    const { meal, time } = req.body;
+    const { meal, time, calorie } = req.body;
     const mealItem = await Meal.findById(req.params.id);
-    if (!meal || !time) {
+    if (!meal || !time || !calorie) {
       return res.status(400).send("please fill the required fields");
     }
     if (!mealItem) {
@@ -59,6 +81,7 @@ router.put("/:id", async (req, res) => {
 
     mealItem.meal = meal;
     mealItem.time = time;
+    mealItem.calorie = calorie;
     await mealItem.save();
 
     return res.status(200).json({ mealItem });
@@ -67,3 +90,5 @@ router.put("/:id", async (req, res) => {
     return res.status(500).send(error.message);
   }
 });
+
+module.exports = router;
