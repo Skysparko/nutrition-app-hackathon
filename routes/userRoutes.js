@@ -9,6 +9,7 @@ const {
 } = require("../utils/validators");
 const User = require("../models/userModel");
 const Transporter = require("../services/email");
+const { isAuthorized, isAdmin } = require("../middlewares/auth");
 require("dotenv").config();
 
 const router = express.Router();
@@ -94,7 +95,7 @@ router.post("/signin", async (req, res) => {
     }
 
     console.log(existingUser, existingUser.userID);
-    const payload = { user: { id: existingUser.userID } };
+    const payload = { user: { userID: existingUser.userID } };
     const bearerToken = await jwt.sign(payload, process.env.SECRET, {
       expiresIn: 360000,
     });
@@ -194,6 +195,41 @@ router.put("/forgot-password/:userID", async (req, res) => {
   } catch (err) {
     console.log(err);
     return res.status(500).json({ err: err.message });
+  }
+});
+
+router.put("/createadmin", isAuthorized, isAdmin, async (req, res) => {
+  try {
+    const { email, role } = req.body;
+
+    if (!validateEmail(email)) {
+      return res.status(403).send("please enter valid email");
+    }
+    if (!role) {
+      return res.status(400).send("please fill the required fields");
+    }
+    const user = await User.findOne({ email: email });
+
+    if (!user) {
+      return res.status(404).send("User not found");
+    }
+
+    user.role = role;
+    await user.save();
+    return res.status(200).json({ user });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ err: error.message });
+  }
+});
+
+router.get("/all", isAuthorized, isAdmin, async (req, res) => {
+  try {
+    const users = await User.find({});
+    return res.status(200).json({ users });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ err: error.message });
   }
 });
 

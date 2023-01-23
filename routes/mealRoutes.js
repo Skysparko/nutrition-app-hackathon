@@ -1,4 +1,4 @@
-const isAuthorized = require("../middlewares/auth");
+const { isAuthorized, isAdmin } = require("../middlewares/auth");
 const Meal = require("../models/mealModel");
 
 const router = require("express").Router();
@@ -25,14 +25,15 @@ router.post("/add", isAuthorized, async (req, res) => {
           body: JSON.stringify({ query: meal }),
         }
       );
-      const data = await response.json();
-      calorie = data.foods[0].nf_calories;
-
-      if (!calorie) {
-        calorie = 250;
+      if (response.status === 200) {
+        const data = await response.json();
+        calorie = data.foods[0].nf_calories;
       }
 
+      calorie = 250;
+
       const mealDetails = {
+        userID: req.user.id,
         meal,
         time,
         calorie,
@@ -58,7 +59,17 @@ router.post("/add", isAuthorized, async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", isAuthorized, async (req, res) => {
+  try {
+    const meals = await Meal.find({ userID: req.user.id });
+    return res.status(200).json({ meals });
+  } catch (error) {
+    console.log("<<<<<<<<<<<<<", error);
+    return res.status(500).send(error.message);
+  }
+});
+
+router.get("/all", isAuthorized, isAdmin, async (req, res) => {
   try {
     const meals = await Meal.find({});
     return res.status(200).json({ meals });
@@ -68,10 +79,38 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.put("/:id", async (req, res) => {
+router.put("all/:id", isAuthorized, isAdmin, async (req, res) => {
   try {
     const { meal, time, calorie } = req.body;
-    const mealItem = await Meal.findById(req.params.id);
+    const mealItem = await Meal.findOne({
+      _id: req.params.id,
+    });
+    if (!meal || !time || !calorie) {
+      return res.status(400).send("please fill the required fields");
+    }
+    if (!mealItem) {
+      return res.status(404).send("Meal not found");
+    }
+
+    mealItem.meal = meal;
+    mealItem.time = time;
+    mealItem.calorie = calorie;
+    await mealItem.save();
+
+    return res.status(200).json({ mealItem });
+  } catch (error) {
+    console.log("<<<<<<<<<<<<<", error);
+    return res.status(500).send(error.message);
+  }
+});
+
+router.put("/:id", isAuthorized, async (req, res) => {
+  try {
+    const { meal, time, calorie } = req.body;
+    const mealItem = await Meal.findOne({
+      _id: req.params.id,
+      userID: req.user.id,
+    });
     if (!meal || !time || !calorie) {
       return res.status(400).send("please fill the required fields");
     }

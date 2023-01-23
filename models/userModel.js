@@ -3,8 +3,6 @@ const mongoose = require("mongoose");
 const userSchema = new mongoose.Schema({
   userID: {
     type: String,
-    required: true,
-    unique: true,
   },
   name: {
     type: String,
@@ -18,6 +16,10 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
+  },
+  role: {
+    type: String,
+    default: "user",
   },
 });
 
